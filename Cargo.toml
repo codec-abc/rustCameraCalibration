@@ -1,0 +1,9 @@
+[package]
+name = "camera_calibration"
+version = "0.1.0"
+authors = ["EUR\\SESA455926 <CAMILLE.VIOT@non.schneider-electric.com>"]
+
+[dependencies]
+imageproc = "0.8.0"
+image = "0.13.0"
+nalgebra = "0.12.3"
