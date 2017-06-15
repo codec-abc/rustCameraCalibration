@@ -24,139 +24,96 @@ type F64Matrix4x4 = Matrix4<f64>;
 type HeapF64VecMatrix3x3 = Matrix<f64, U3, U3, MatrixVec<f64, U3, U3>>;
 type F64Matrix3x3 = Matrix3<f64>;
 
-const  TOL: f64 = 0.000_000_01;
+type Point2D = MatrixNM<f64, U2, U1>;
+type Point2DT = MatrixNM<f64, U1, U2>;
+
+type Point3D = MatrixNM<f64, U3, U1>;
+type Point3DT = MatrixNM<f64, U1, U3>;
+
+type Point4D = MatrixNM<f64, U4, U1>;
+type Point4DT = MatrixNM<f64, U1, U4>;
 
 fn main() {
+    build_normalization_matrix(640.0, 480.0);
 }
 
-struct OkResult {
+struct PairPoint2D {
+    image_point : Point2D,
+    model_point : Point2D
 }
 
-struct Vec2r {
-    x : f64,
-    y : f64,
+struct PairPoint3D {
+    image_point : Point3D,
+    model_point : Point3D
 }
 
-impl fmt::Display for Vec2r {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
+struct ImageData2D {
+    width : f64,
+    height : f64,
+    pair_points : Vec<PairPoint2D>
+}
+
+struct ImageData3D {
+    width : f64,
+    height : f64,
+    pair_points : Vec<PairPoint3D>
+}
+
+fn matrix_index(i : u32, j : u32, rows : usize, columns : usize) -> usize {
+    let i_ = i as usize;
+    let j_ = j as usize;
+    (j_ * rows + i_)
+}
+
+fn matrix_index2<N : Scalar, R : Dim, C : Dim, S : nalgebra::storage::Storage<N, R, C>>(i : u32, j : u32, matrix : &Matrix<N, R, C, S>) -> usize {
+    let rows = matrix.nrows();
+    let columns = matrix.ncols();
+    let i_ = i as usize;
+    let j_ = j as usize;
+    (j_ * rows + i_)
+}
+
+fn build_normalization_matrix(w : f64, h : f64) -> F64Matrix3x3 {
+    let mut n = Matrix::identity_generic(U3 , U3);
+    let mut index = matrix_index2(0u32, 0u32, &n);
+    n[index] = 2.0 / w;
+    index = matrix_index2(1u32, 1u32, &n);
+    n[index] = 2.0 / h;
+    index = matrix_index2(0u32, 2u32, &n);
+    n[index] = -1.0;
+    index = matrix_index2(1u32, 2u32, &n);
+    n[index] = -1.0;
+    n
+}
+
+fn point_2d_to_point_3d(point : &Point2D) -> Point3D {
+    Point3D::new(point[0], point[1], 0.0)
+}
+
+fn point_3d_to_point_4d(point : &Point2D) -> Point4D {
+    Point4D::new(point[0], point[1], point[2], 0.0)
+}
+
+fn normalize_point(point : &Point2D , normalization_matrix : &F64Matrix3x3) -> Point3D {
+    let point_3d = point_2d_to_point_3d(point);
+    normalization_matrix * point_3d
+}
+
+fn normalize_data_set(data_set : & mut ImageData2D) -> ImageData3D {
+    let normalization_matrix = build_normalization_matrix(data_set.width, data_set.height);
+    let mut normalized_points : Vec<PairPoint3D> = vec!();
+    for ref p in data_set.pair_points.iter() {
+        let new_model_point = point_2d_to_point_3d(&p.model_point);
+        let new_image_point = normalize_point(&p.image_point, &normalization_matrix);
+        let new_pair = PairPoint3D {
+            model_point : new_model_point,
+            image_point : new_image_point
+        };
+        normalized_points.push(new_pair);
     }
-}
-
-fn write_pattern_results
-(
-    patterns : &Vec<Vec<Vec2r>>,
-    im_w : u32, 
-    im_h : u32, 
-    path : &str
-) -> Result<OkResult, String> {
-
-    let f = File::create(path);
-
-    match f {
-        Err(a) =>  {
-            return Err(format!("{}", a));
-        }
-        Ok(mut f) => 
-        {
-            let msg = format!("{} {} \n", im_w, im_h);
-            let result = f.write_all(msg.as_bytes());
-            if result.is_err()
-            {
-                return Err(format!("{}", result.unwrap_err()));
-            }
-            for x in patterns {
-                for y in x {
-                    let result = f.write_all(format!("{}", y).as_bytes());
-                    if result.is_err()
-                    {
-                        return Err(format!("{}", result.unwrap_err()));
-                    }
-                }
-                let result = f.write_all("\n".as_bytes());
-                if result.is_err()
-                {
-                    return Err(format!("{}", result.unwrap_err()));
-                }
-            }
-        }
+    ImageData3D {
+        width : data_set.width,
+        height : data_set.height,
+        pair_points : normalized_points
     }
-
-    Ok(OkResult {})
-}
-
-struct PatternReadResult {
-    patterns : Vec<Vec<Vec2r>>,
-    im_w : u32,
-    im_h : u32,
-}
-
-fn read_pattern_results(path : & str) -> Result<PatternReadResult, String> {
-	let mut patterns : Vec<Vec<Vec2r>> = vec![];
-    let im_w : u32;
-    let im_h : u32;
-
-    let f_ = File::open(path);
-
-    if f_.is_err() {
-        return Err("Cannot open file".to_owned());
-    }
-
-    let f = f_.unwrap();
-    let file = BufReader::new(&f);
-    let mut lines = file.lines();
-    let line = lines.next();
-    if line.is_some() {
-        let line_ = line.unwrap();
-        if line_.is_ok() {
-            let line = line_.unwrap();
-            let l : Vec<&str> = line.split(' ').collect();
-            if l.len() == 2 {
-                let w = l[0].parse::<u32>();
-                let h = l[1].parse::<u32>();
-                if w.is_ok() && h.is_ok() {
-                    im_w = w.unwrap();
-                    im_h = h.unwrap();
-                } else {
-                    return Err("Width and height cannot be parsed".to_owned());
-                }
-            } else {
-                return Err("First line has not a single space".to_owned());
-            }
-        } else {
-            return Err("Cannot read line".to_owned());
-        }
-    } else {
-        return Err("There is no line in file".to_owned());
-    }
-
-    for line_ in lines {
-        if line_.is_ok() {
-            let line = line_.unwrap();
-            let l : Vec<&str> = line.split(',').collect();
-            let mut p : Vec<Vec2r> = vec!();
-            for v in l {
-                let w : Vec<&str>  = v.split(' ').collect();
-                if w.len() == 2 {
-                    let x = w[0].parse::<f64>();
-                    let y = w[1].parse::<f64>();
-                    if x.is_ok() && y.is_ok() {
-                        let vp = Vec2r {
-                            x : x.unwrap(),
-                            y : y.unwrap()
-                        };
-                        p.push(vp);
-                    }
-                }
-            }
-            patterns.push(p);
-        }
-    }
-
-    Ok (PatternReadResult {
-        patterns : patterns,
-        im_w : im_w,
-        im_h : im_h
-    })
-
 }
