@@ -24,14 +24,14 @@ type F64Matrix4x4 = Matrix4<f64>;
 type HeapF64VecMatrix3x3 = Matrix<f64, U3, U3, MatrixVec<f64, U3, U3>>;
 type F64Matrix3x3 = Matrix3<f64>;
 
-type Point2D = MatrixNM<f64, U2, U1>;
-type Point2DT = MatrixNM<f64, U1, U2>;
+type Point2D = MatrixMN<f64, U2, U1>;
+type Point2DT = MatrixMN<f64, U1, U2>;
 
-type Point3D = MatrixNM<f64, U3, U1>;
-type Point3DT = MatrixNM<f64, U1, U3>;
+type Point3D = MatrixMN<f64, U3, U1>;
+type Point3DT = MatrixMN<f64, U1, U3>;
 
-type Point4D = MatrixNM<f64, U4, U1>;
-type Point4DT = MatrixNM<f64, U1, U4>;
+type Point4D = MatrixMN<f64, U4, U1>;
+type Point4DT = MatrixMN<f64, U1, U4>;
 
 fn main() {
     build_normalization_matrix(640.0, 480.0);
